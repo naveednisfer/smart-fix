@@ -67,7 +67,7 @@ export default function RegisterScreen({ navigation }) {
       <ScrollView contentContainerStyle={styles.scrollContent}>
         <View style={styles.header}>
           <Text style={styles.logo}>🔧</Text>
-          <Text style={styles.title}>Join SmartFix</Text>
+          <Text style={styles.title}>Create Account</Text>
           <Text style={styles.subtitle}>Create your account to get started</Text>
         </View>
 

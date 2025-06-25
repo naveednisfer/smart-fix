@@ -1,11 +1,13 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, FlatList, TouchableOpacity, RefreshControl } from 'react-native';
+import { View, Text, StyleSheet, FlatList, TouchableOpacity, RefreshControl, Alert } from 'react-native';
 import { supabase } from '../supabase';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export default function MyBookingsScreen({ navigation }) {
   const [bookings, setBookings] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [userId, setUserId] = useState(null);
 
   const fetchBookings = async () => {
     try {
@@ -14,18 +16,16 @@ export default function MyBookingsScreen({ navigation }) {
         navigation.replace('Login');
         return;
       }
-
-      const { data, error } = await supabase
-        .from('bookings')
-        .select('*')
-        .eq('user_id', user.id)
-        .order('date', { ascending: true });
-
-      if (error) {
-        console.error('Error fetching bookings:', error);
-      } else {
-        setBookings(data || []);
-      }
+      setUserId(user.id);
+      // Load from AsyncStorage
+      const localKey = `bookings_${user.id}`;
+      const local = await AsyncStorage.getItem(localKey);
+      let localBookings = local ? JSON.parse(local) : [];
+      // Remove past bookings
+      const today = new Date().toISOString().split('T')[0];
+      localBookings = localBookings.filter(b => b.date >= today);
+      await AsyncStorage.setItem(localKey, JSON.stringify(localBookings));
+      setBookings(localBookings);
     } catch (error) {
       console.error('Error:', error);
     } finally {
@@ -41,6 +41,18 @@ export default function MyBookingsScreen({ navigation }) {
   const onRefresh = () => {
     setRefreshing(true);
     fetchBookings();
+  };
+
+  const handleComplete = async (id) => {
+    if (!userId) return;
+    const localKey = `bookings_${userId}`;
+    let local = await AsyncStorage.getItem(localKey);
+    let localBookings = local ? JSON.parse(local) : [];
+    localBookings = localBookings.filter(b => b.id !== id);
+    await AsyncStorage.setItem(localKey, JSON.stringify(localBookings));
+    setBookings(localBookings);
+    // Optionally, also delete from Supabase:
+     await supabase.from('bookings').delete().eq('id', id);
   };
 
   const getUpcomingBookings = () => {
@@ -59,9 +71,17 @@ export default function MyBookingsScreen({ navigation }) {
       <Text style={styles.bookingDetails}>Date: {item.date}</Text>
       <Text style={styles.bookingDetails}>Time: {item.time}</Text>
       <Text style={styles.bookingDetails}>Address: {item.address}</Text>
+      {item.comments ? (
+        <Text style={styles.bookingComments}>Comment: {item.comments}</Text>
+      ) : null}
       <Text style={[styles.status, { color: item.date >= new Date().toISOString().split('T')[0] ? '#28a745' : '#6c757d' }]}>
         {item.date >= new Date().toISOString().split('T')[0] ? 'Upcoming' : 'Completed'}
       </Text>
+      {item.date >= new Date().toISOString().split('T')[0] && (
+        <TouchableOpacity style={styles.completeButton} onPress={() => handleComplete(item.id)}>
+          <Text style={styles.completeButtonText}>Completed</Text>
+        </TouchableOpacity>
+      )}
     </View>
   );
 
@@ -116,6 +136,28 @@ export default function MyBookingsScreen({ navigation }) {
 }
 
 const styles = StyleSheet.create({
+  ...StyleSheet.flatten({
+    completeButton: {
+      marginTop: 12,
+      backgroundColor: '#007AFF',
+      paddingVertical: 8,
+      paddingHorizontal: 16,
+      borderRadius: 6,
+      alignItems: 'center',
+      alignSelf: 'flex-start',
+    },
+    completeButtonText: {
+      color: '#fff',
+      fontWeight: 'bold',
+      fontSize: 14,
+    },
+    bookingComments: {
+      fontSize: 14,
+      color: '#007AFF',
+      marginBottom: 4,
+      fontStyle: 'italic',
+    },
+  }),
   container: {
     flex: 1,
     backgroundColor: '#f8f9fa',

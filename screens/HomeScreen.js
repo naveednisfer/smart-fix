@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, FlatList, RefreshControl, Alert } from 'react-native';
 import { supabase } from '../supabase';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export default function HomeScreen({ navigation }) {
   const [services, setServices] = useState([]);
@@ -15,8 +16,6 @@ export default function HomeScreen({ navigation }) {
         .order('name');
 
       if (error) {
-        console.error('Error fetching services:', error);
-        // Fallback to default services if table doesn't exist
         setServices([
           { id: '1', name: 'AC Repair', description: 'Air conditioning repair and maintenance' },
           { id: '2', name: 'Plumbing', description: 'Plumbing services and repairs' },
@@ -28,8 +27,6 @@ export default function HomeScreen({ navigation }) {
         setServices(data || []);
       }
     } catch (error) {
-      console.error('Error:', error);
-      // Fallback services
       setServices([
         { id: '1', name: 'AC Repair', description: 'Air conditioning repair and maintenance' },
         { id: '2', name: 'Plumbing', description: 'Plumbing services and repairs' },
@@ -63,8 +60,6 @@ export default function HomeScreen({ navigation }) {
           style: 'destructive',
           onPress: async () => {
             await supabase.auth.signOut();
-            // No need to navigate manually - App.js will handle it automatically
-            // when the session state changes
           },
         },
       ]

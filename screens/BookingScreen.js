@@ -1,12 +1,14 @@
 import React, { useState } from 'react';
 import { View, Text, TextInput, TouchableOpacity, StyleSheet, Alert, ScrollView, KeyboardAvoidingView, Platform } from 'react-native';
 import { supabase } from '../supabase';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export default function BookingScreen({ route, navigation }) {
   const { service } = route.params;
   const [date, setDate] = useState('');
   const [time, setTime] = useState('');
   const [address, setAddress] = useState('');
+  const [comments, setComments] = useState('');
   const [loading, setLoading] = useState(false);
 
   const validateForm = () => {
@@ -63,21 +65,39 @@ export default function BookingScreen({ route, navigation }) {
         return;
       }
 
-      const { error } = await supabase.from('bookings').insert([
+      // Save to Supabase
+      const { data, error } = await supabase.from('bookings').insert([
         {
           user_id: user.id,
           service,
           date,
           time,
           address,
+          comments,
           status: 'pending',
           created_at: new Date().toISOString(),
         },
-      ]);
+      ]).select();
 
       if (error) {
         Alert.alert('Error', error.message);
       } else {
+        // Save to AsyncStorage
+        const localKey = `bookings_${user.id}`;
+        const existing = await AsyncStorage.getItem(localKey);
+        let bookings = existing ? JSON.parse(existing) : [];
+        // Use Supabase id if available, otherwise Date.now()
+        const newBooking = {
+          id: (data && data[0] && data[0].id) || Date.now(),
+          service,
+          date,
+          time,
+          address,
+          comments,
+          status: 'upcoming',
+        };
+        bookings.push(newBooking);
+        await AsyncStorage.setItem(localKey, JSON.stringify(bookings));
         Alert.alert(
           'Success', 
           'Booking submitted successfully! You will receive a confirmation shortly.',
@@ -149,7 +169,7 @@ export default function BookingScreen({ route, navigation }) {
             <Text style={styles.label}>Time *</Text>
             <TextInput
               style={styles.input}
-              placeholder="HH:MM (e.g., 14:30)"
+              placeholder="HH:MM (e.g. 14:30)"
               value={time}
               onChangeText={setTime}
               autoCapitalize="none"
@@ -169,6 +189,19 @@ export default function BookingScreen({ route, navigation }) {
               placeholder="Enter your full address"
               value={address}
               onChangeText={setAddress}
+              multiline
+              numberOfLines={3}
+              textAlignVertical="top"
+            />
+          </View>
+
+          <View style={styles.inputGroup}>
+            <Text style={styles.label}>Comments (optional)</Text>
+            <TextInput
+              style={[styles.input, styles.textArea]}
+              placeholder="Add any specific details or requests for the service provider"
+              value={comments}
+              onChangeText={setComments}
               multiline
               numberOfLines={3}
               textAlignVertical="top"
